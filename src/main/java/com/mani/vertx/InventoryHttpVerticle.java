@@ -14,7 +14,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.core.http.HttpMethod;
 import java.time.Duration;
 import java.util.concurrent.CompletionStage;
 
@@ -44,6 +45,16 @@ public class InventoryHttpVerticle extends AbstractVerticle {
     public void start(Promise<Void> startPromise) {
         // create Vertx Router to Handle URL endpoints
         Router router = Router.router(vertx);
+        router.route().handler(CorsHandler.create()
+                .addOrigin("http://localhost:4200") // Explicitly allow Angular's port
+                .allowedMethod(HttpMethod.GET)
+                .allowedMethod(HttpMethod.POST)
+                .allowedMethod(HttpMethod.OPTIONS)
+                .allowedHeader("Access-Control-Request-Method")
+                .allowedHeader("Access-Control-Allow-Credentials")
+                .allowedHeader("Access-Control-Allow-Origin")
+                .allowedHeader("Access-Control-Allow-Headers")
+                .allowedHeader("Content-Type"));
 
         router.route().handler(BodyHandler.create());
         router.get("/health").handler(this::onHealthCheck);

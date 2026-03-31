@@ -1,12 +1,6 @@
 package com.mani;
 
 import akka.actor.typed.ActorSystem;
-import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.Behaviors;
-import akka.cluster.sharding.typed.javadsl.ClusterSharding;
-import akka.cluster.sharding.typed.javadsl.Entity;
-import akka.cluster.sharding.typed.javadsl.EntityTypeKey;
-import com.mani.akka.messages.InventoryCommand;
 import com.mani.vertx.InventoryHttpVerticle;
 import io.vertx.core.Vertx;
 
@@ -49,18 +43,6 @@ public class InventoryApplication {
                     system.terminate();
                 });
     }
-    // private static Behavior<Void> createGuardian(){
-    //
 
-    // EntityTypeKey<InventoryCommand> typeKey
-    // EntityTypeKey.create(Inv
-    //
-    // harding.get(context.getSystem()).init(
-    //
-    // );
-    // ehaviors.empty();
-    //
-    //
-    //
 
 }

@@ -48,7 +48,8 @@ public class ProductInventoryActor extends AbstractBehavior<InventoryCommand> {
     private Behavior<InventoryCommand> onReserveStock(InventoryCommand.ReserveStockCommand command) {
         if (state.canOrder(command.quantity)) {
             state.reserve(command.quantity);
-            command.replyTo.tell(new InventoryCommand.ReservationResponse(command.orderId, true, "Stock Reserved successfully"));
+            command.replyTo.tell(
+                    new InventoryCommand.ReservationResponse(command.orderId, true, "Stock Reserved successfully"));
         } else {
             command.replyTo.tell(new InventoryCommand.ReservationResponse(command.orderId, false,
                     "Insufficient stock: " + state.available() + " available"));
