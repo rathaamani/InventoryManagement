@@ -5,27 +5,41 @@ import akka.actor.typed.ActorRef;
 
 // The Parent Interface
 public interface InventoryCommand extends Serializable {
+
     // Ask the akka for current stock
-    class CheckStockCommand implements InventoryCommand{
-        public ActorRef<StockResponse> replyTo;
+    public static class CheckStockCommand implements InventoryCommand {
+        public final ActorRef<StockResponse> replyTo; // Added final
 
         public CheckStockCommand(ActorRef<StockResponse> replyTo) {
             this.replyTo = replyTo;
         }
     }
-    class StockResponse implements Serializable{
+
+    public static class StockResponse implements Serializable {
         public final String productId;
         public final int available;
         public final int reserved;
+        public final int sold;
 
-        public StockResponse(String productId, int available, int reserved) {
+        public StockResponse(String productId, int available, int reserved, int sold) {
             this.productId = productId;
             this.available = available;
             this.reserved = reserved;
+            this.sold = sold;
         }
     }
 
-    class ReserveStockCommand implements InventoryCommand {
+    public static class AddStockCommand implements InventoryCommand {
+        public final int quantity;
+        public final ActorRef<StockResponse> replyTo;
+
+        public AddStockCommand(int quantity, ActorRef<StockResponse> replyTo) {
+            this.quantity = quantity;
+            this.replyTo = replyTo;
+        }
+    }
+
+    public static class ReserveStockCommand implements InventoryCommand {
         public final String orderId;
         public final int quantity;
         public final ActorRef<ReservationResponse> replyTo;
@@ -36,7 +50,8 @@ public interface InventoryCommand extends Serializable {
             this.replyTo = replyTo;
         }
     }
-    class ReservationResponse implements Serializable{
+
+    public static class ReservationResponse implements Serializable {
         public final String orderId;
         public final boolean success;
         public final String message;
@@ -47,34 +62,36 @@ public interface InventoryCommand extends Serializable {
             this.message = message;
         }
     }
-    class ConfirmOrderCommand implements InventoryCommand {
+
+    public static class ConfirmOrderCommand implements InventoryCommand {
         public final String orderId;
         public final int quantity;
 
-        public ConfirmOrderCommand(String orderId, int quantity){
-             this.orderId = orderId;
-             this.quantity = quantity;
+        public ConfirmOrderCommand(String orderId, int quantity) {
+            this.orderId = orderId;
+            this.quantity = quantity;
         }
     }
-    class CancelOrderCommand implements InventoryCommand {
-         public final String orderId;
-         public final int quantity;
+
+    public static class CancelOrderCommand implements InventoryCommand {
+        public final String orderId;
+        public final int quantity;
 
         public CancelOrderCommand(String orderId, int quantity) {
             this.orderId = orderId;
             this.quantity = quantity;
         }
-
     }
-    // Command: Get the full detailed inventory state
-    class GetInventoryCommand implements InventoryCommand {
+
+    public static class GetInventoryCommand implements InventoryCommand {
         public final ActorRef<InventoryStateResponse> replyTo;
 
         public GetInventoryCommand(ActorRef<InventoryStateResponse> replyTo) {
             this.replyTo = replyTo;
         }
     }
-    class InventoryStateResponse implements Serializable{
+
+    public static class InventoryStateResponse implements Serializable {
         public final String productId;
         public final int quantity;
         public final int reserved;

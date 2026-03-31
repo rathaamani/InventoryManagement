@@ -1,81 +1,165 @@
 package com.mani.akka.actors;
 
+import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.AbstractBehavior;
-import akka.actor.typed.javadsl.ActorContext;
-import akka.actor.typed.javadsl.Behaviors;
-import akka.actor.typed.javadsl.Receive;
-
-import com.mani.domain.InventoryState;
+import akka.persistence.typed.PersistenceId;
+import akka.persistence.typed.javadsl.CommandHandler;
+import akka.persistence.typed.javadsl.EventHandler;
+import akka.persistence.typed.javadsl.EventSourcedBehavior;
+import akka.persistence.typed.javadsl.Effect;
 import com.mani.akka.messages.InventoryCommand;
 
-public class ProductInventoryActor extends AbstractBehavior<InventoryCommand> {
+public class ProductInventoryActor extends
+        EventSourcedBehavior<InventoryCommand, ProductInventoryActor.Event, ProductInventoryActor.State> {
+
+    // --- 1. State ---
+    public static class State {
+        public final String productId;
+        public int available;
+        public int reserved;
+        public int sold;
+
+        public State(String productId, int available, int reserved, int sold) {
+            this.productId = productId;
+            this.available = available;
+            this.reserved = reserved;
+            this.sold = sold;
+        }
+    }
+
+    // --- 2. Events ---
+    public interface Event {
+    }
+
+    public static final class StockReserved implements Event {
+        public final int quantity;
+
+        public StockReserved(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    public static final class StockReplenished implements Event {
+        public final int quantity;
+
+        public StockReplenished(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    public static final class OrderConfirmed implements Event {
+        public final int quantity;
+
+        public OrderConfirmed(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    public static final class OrderCancelled implements Event {
+        public final int quantity;
+
+        public OrderCancelled(int quantity) {
+            this.quantity = quantity;
+        }
+    }
+
+    // --- 3. Factory Setup ---
+    public static Behavior<InventoryCommand> create(String productId) {
+        return create(productId, 100); // Default initial stock for development
+    }
+
+    public static Behavior<InventoryCommand> create(String productId, int initialStock) {
+        return new ProductInventoryActor(
+                PersistenceId.of("ProductInventory", productId),
+                productId,
+                initialStock);
+    }
 
     private final String productId;
-    private final InventoryState state;
+    private final int initialStock;
 
-    // 1. The Factory Method (How Akka creates this actor)
-    public static Behavior<InventoryCommand> create(String productId) {
-        return Behaviors.setup(context -> new ProductInventoryActor(context, productId));
-    }
-
-    // 2. The Constructor
-    private ProductInventoryActor(ActorContext<InventoryCommand> context, String productId) {
-        super(context);
+    private ProductInventoryActor(PersistenceId persistenceId, String productId, int initialStock) {
+        super(persistenceId);
         this.productId = productId;
-        this.state = new InventoryState(productId, 100);
+        this.initialStock = initialStock;
     }
 
-    // 3. The Message Router
     @Override
-    public Receive<InventoryCommand> createReceive() {
-        return newReceiveBuilder()
-                .onMessage(InventoryCommand.CheckStockCommand.class, this::onCheckStock)
-                .onMessage(InventoryCommand.ReserveStockCommand.class, this::onReserveStock)
-                .onMessage(InventoryCommand.ConfirmOrderCommand.class, this::onConfirmOrder)
-                .onMessage(InventoryCommand.CancelOrderCommand.class, this::onCancelOrder)
-                .onMessage(InventoryCommand.GetInventoryCommand.class, this::onGetInventory)
+    public State emptyState() {
+        return new State(productId, initialStock, 0, 0);
+    }
+
+    // --- 4. Command Handlers ---
+    @Override
+    public CommandHandler<InventoryCommand, Event, State> commandHandler() {
+        return newCommandHandlerBuilder()
+                .forAnyState()
+                .onCommand(InventoryCommand.CheckStockCommand.class, this::onCheckStock)
+                .onCommand(InventoryCommand.ReserveStockCommand.class, this::onReserveStock)
+                .onCommand(InventoryCommand.AddStockCommand.class, this::onRestock)
+                .onCommand(InventoryCommand.ConfirmOrderCommand.class, this::onConfirmOrder)
+                .onCommand(InventoryCommand.CancelOrderCommand.class, this::onCancelOrder)
                 .build();
     }
 
-    // 4. Check Stock
-    private Behavior<InventoryCommand> onCheckStock(InventoryCommand.CheckStockCommand command) {
-        command.replyTo.tell(new InventoryCommand.StockResponse(productId, state.available(), state.reserved));
-        return this;
+    private Effect<Event, State> onCheckStock(State state, InventoryCommand.CheckStockCommand command) {
+        command.replyTo.tell(new InventoryCommand.StockResponse(state.productId, state.available, state.reserved, state.sold));
+        return Effect().none();
     }
 
-    // 5. Reserve Stock (place an order)
-    private Behavior<InventoryCommand> onReserveStock(InventoryCommand.ReserveStockCommand command) {
-        if (state.canOrder(command.quantity)) {
-            state.reserve(command.quantity);
-            command.replyTo.tell(
-                    new InventoryCommand.ReservationResponse(command.orderId, true, "Stock Reserved successfully"));
+    private Effect<Event, State> onReserveStock(State state, InventoryCommand.ReserveStockCommand command) {
+        if (state.available >= command.quantity) {
+            StockReserved event = new StockReserved(command.quantity);
+            return Effect().persist(event).thenRun(() -> {
+                command.replyTo.tell(new InventoryCommand.ReservationResponse(command.orderId, true, "Successfully reserved " + command.quantity + " items."));
+            });
         } else {
-            command.replyTo.tell(new InventoryCommand.ReservationResponse(command.orderId, false,
-                    "Insufficient stock: " + state.available() + " available"));
+            command.replyTo.tell(new InventoryCommand.ReservationResponse(command.orderId, false, "Insufficient stock. Only " + state.available + " left."));
+            return Effect().none();
         }
-        return this;
     }
 
-    // 6. Confirm an Order (moves reserved stock to sold)
-    private Behavior<InventoryCommand> onConfirmOrder(InventoryCommand.ConfirmOrderCommand command) {
-        state.confirmSale(command.quantity);
-        return this;
+    private Effect<Event, State> onRestock(State state, InventoryCommand.AddStockCommand command) {
+        StockReplenished event = new StockReplenished(command.quantity);
+        return Effect().persist(event).thenRun(() -> {
+            if (command.replyTo != null) {
+                command.replyTo.tell(new InventoryCommand.StockResponse(state.productId, state.available + command.quantity, state.reserved, state.sold));
+            }
+        });
     }
 
-    // 7. Cancel an Order (releases reserved stock back to available)
-    private Behavior<InventoryCommand> onCancelOrder(InventoryCommand.CancelOrderCommand command) {
-        state.reserved -= command.quantity;
-        return this;
+    private Effect<Event, State> onConfirmOrder(State state, InventoryCommand.ConfirmOrderCommand command) {
+        return Effect().persist(new OrderConfirmed(command.quantity));
     }
 
-    // 8. Get full inventory state
-    private Behavior<InventoryCommand> onGetInventory(InventoryCommand.GetInventoryCommand command) {
-        command.replyTo.tell(new InventoryCommand.InventoryStateResponse(
-                productId,
-                state.quantity,
-                state.reserved,
-                state.sold));
-        return this;
+    private Effect<Event, State> onCancelOrder(State state, InventoryCommand.CancelOrderCommand command) {
+        return Effect().persist(new OrderCancelled(command.quantity));
+    }
+
+    // --- 5. Event Handlers ---
+    @Override
+    public EventHandler<State, Event> eventHandler() {
+        return newEventHandlerBuilder()
+                .forAnyState()
+                .onEvent(StockReserved.class, (state, event) -> {
+                    state.available -= event.quantity;
+                    state.reserved += event.quantity;
+                    return state;
+                })
+                .onEvent(StockReplenished.class, (state, event) -> {
+                    state.available += event.quantity;
+                    return state;
+                })
+                .onEvent(OrderConfirmed.class, (state, event) -> {
+                    state.reserved -= event.quantity;
+                    state.sold += event.quantity;
+                    return state;
+                })
+                .onEvent(OrderCancelled.class, (state, event) -> {
+                    state.reserved -= event.quantity;
+                    state.available += event.quantity;
+                    return state;
+                })
+                .build();
     }
 }
