@@ -1,0 +1,52 @@
+﻿[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------< org.mani:InventoryManagement >--------------------
+[INFO] Building Archetype - InventoryManagement 1.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ InventoryManagement ---
+[INFO] Deleting G:\Office\Akka\Akka Cluster\InventoryManagement\target
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ InventoryManagement ---
+[INFO] Copying 6 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ InventoryManagement ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 9 source files with javac [debug target 11] to target\classes
+[INFO] Annotation processing is enabled because one or more processors were found
+  on the class path. A future release of javac may disable annotation processing
+  unless at least one processor is specified by name (-processor), or a search
+  path is specified (--processor-path, --processor-module-path), or annotation
+  processing is enabled explicitly (-proc:only, -proc:full).
+  Use -Xlint:-options to suppress this message.
+  Use -proc:none to disable annotation processing.
+[INFO] Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+[INFO] -------------------------------------------------------------
+[WARNING] COMPILATION WARNING : 
+[INFO] -------------------------------------------------------------
+[WARNING] system modules path not set in conjunction with -source 11
+[INFO] 1 warning
+[INFO] -------------------------------------------------------------
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /G:/Office/Akka/Akka Cluster/InventoryManagement/src/main/java/com/mani/vertx/InventoryHttpVerticle.java:[362,93] incompatible types: akka.actor.typed.ActorRef<java.lang.Object> cannot be converted to akka.actor.typed.ActorRef<com.mani.akka.messages.InventoryCommand.ActionResponse>
+[INFO] 1 error
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  4.506 s
+[INFO] Finished at: 2026-04-02T03:13:55+05:30
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project InventoryManagement: Compilation failure
+[ERROR] /G:/Office/Akka/Akka Cluster/InventoryManagement/src/main/java/com/mani/vertx/InventoryHttpVerticle.java:[362,93] incompatible types: akka.actor.typed.ActorRef<java.lang.Object> cannot be converted to akka.actor.typed.ActorRef<com.mani.akka.messages.InventoryCommand.ActionResponse>
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

@@ -78,3 +78,4 @@ Invoke-RestMethod -Uri http://localhost:8081/orders -Method Post -Body '{"produc
 
 ## 📝 Troubleshooting
 If you see `java.net.BindException`, a previous instance of the application might still be running. Use `Stop-Process -Name "java" -Force` in PowerShell to clear them before restarting the cluster.
+"# inventory-management-Akka-Cluster" 

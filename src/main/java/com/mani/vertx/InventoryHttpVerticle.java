@@ -18,6 +18,10 @@ import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.core.http.HttpMethod;
 import java.time.Duration;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
+import io.vertx.core.json.JsonArray;
 
 public class InventoryHttpVerticle extends AbstractVerticle {
     private static final Logger log = LoggerFactory.getLogger(InventoryHttpVerticle.class);
@@ -25,13 +29,16 @@ public class InventoryHttpVerticle extends AbstractVerticle {
     private final ClusterSharding sharding;
     private final EntityTypeKey<InventoryCommand> typeKey;
     private final Duration timeout = Duration.ofSeconds(10);
-    // Simulated Shared Dataset (Read-Only Catalog)
-    private static final java.util.Map<String, String> CATALOG = java.util.Map.of(
+    // Mutable Shared Dataset (Read-Write Catalog)
+    private static final java.util.Map<String, String> CATALOG = new ConcurrentHashMap<>(java.util.Map.of(
             "LAPTOP-001", "Dell XPS 13 - $999.99",
             "PHONE-001", "iPhone 15 - $999.99",
             "TABLET-001", "Samsung Tablet - $299.99",
             "MOUSE-001", "Wireless Mouse - $29.99",
-            "KEYBOARD-001", "Mechanical Keyboard - $99.99");
+            "KEYBOARD-001", "Mechanical Keyboard - $99.99"));
+
+    // In-memory order log for historical record
+    private static final List<JsonObject> ORDERS_LOG = new CopyOnWriteArrayList<>();
 
     private final int httpPort;
 
@@ -61,7 +68,9 @@ public class InventoryHttpVerticle extends AbstractVerticle {
         router.get("/inventory/:productId").handler(this::onCheckStock);
         router.get("/products/:productId").handler(this::onGetDetails);
         router.get("/products").handler(this::onListProducts);
+        router.post("/products").handler(this::onAddProduct);
         router.post("/orders").handler(this::onCreateOrder);
+        router.get("/orders").handler(this::onListOrders);
 
         vertx.createHttpServer()
                 .requestHandler(router)
@@ -90,7 +99,7 @@ public class InventoryHttpVerticle extends AbstractVerticle {
         // 2. The Ask Pattern: Send a message to the Actor and wait for a response
         CompletionStage<InventoryCommand.StockResponse> reply = AskPattern.ask(
                 entityRef,
-                replyTo -> new CheckStockCommand(replyTo),
+                replyTo -> new InventoryCommand.CheckStockCommand(replyTo),
                 timeout,
                 system.scheduler());
         // 3. When the Actor replies, send the JSON back to the user
@@ -127,11 +136,49 @@ public class InventoryHttpVerticle extends AbstractVerticle {
     }
 
     private void onListProducts(RoutingContext context) {
-        JsonObject json = new JsonObject();
-        CATALOG.forEach(json::put);
+        JsonArray array = new JsonArray();
+        CATALOG.forEach((id, details) -> {
+            array.add(new JsonObject()
+                    .put("productId", id)
+                    .put("details", details));
+        });
         context.response()
                 .putHeader("content-type", "application/json")
-                .end(json.encodePrettily());
+                .end(array.encodePrettily());
+    }
+
+    private void onAddProduct(RoutingContext context) {
+        JsonObject body = context.body().asJsonObject();
+        if (body == null) {
+            context.response().setStatusCode(400).end("Missing JSON body");
+            return;
+        }
+
+        String productId = body.getString("productId");
+        String details = body.getString("details");
+        int initialStock = body.getInteger("initialStock", 100);
+
+        if (productId == null || details == null) {
+            context.response().setStatusCode(400).end("Missing productId or details");
+            return;
+        }
+
+        // Add to catalog
+        CATALOG.put(productId, details);
+
+        // Initialize Stock in Akka - We can do this lazily or explicitly
+        // Here we just trigger an "AddStock" with 0 or the initial stock to ensure the actor is warmed up
+        EntityRef<InventoryCommand> entityRef = sharding.entityRefFor(typeKey, productId);
+        entityRef.tell(new InventoryCommand.AddStockCommand(initialStock, null));
+
+        context.response()
+                .setStatusCode(201)
+                .putHeader("content-type", "application/json")
+                .end(new JsonObject()
+                        .put("status", "success")
+                        .put("message", "Product added and stock initialized")
+                        .put("productId", productId)
+                        .encodePrettily());
     }
 
     private void onCreateOrder(RoutingContext context) {
@@ -152,15 +199,30 @@ public class InventoryHttpVerticle extends AbstractVerticle {
                 JsonObject json = new JsonObject()
                         .put("orderId", response.orderId)
                         .put("success", response.success)
-                        .put("message", response.message);
+                        .put("message", response.message)
+                        .put("productId", productId)
+                        .put("quantity", quantity)
+                        .put("timestamp", System.currentTimeMillis());
+
+                if (response.success) {
+                    ORDERS_LOG.add(json); // Store successful order in memory
+                }
 
                 context.response()
                         .setStatusCode(response.success ? 200 : 400)
                         .putHeader("content-type", "application/json")
                         .end(json.encodePrettily());
             } else {
-                context.response().setStatusCode(500).end("Order processing failed");
+                log.error("Failed to create order for {}: {}", productId, (failure != null ? failure.getMessage() : "Timeout"));
+                context.response().setStatusCode(500).end("Order processing failed: " + (failure != null ? failure.getMessage() : "Actor timeout"));
             }
         });
+    }
+
+    private void onListOrders(RoutingContext context) {
+        JsonArray array = new JsonArray(ORDERS_LOG);
+        context.response()
+                .putHeader("content-type", "application/json")
+                .end(array.encodePrettily());
     }
 }

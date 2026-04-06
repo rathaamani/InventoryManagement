@@ -1,7 +1,8 @@
 package com.mani;
 
-import akka.actor.typed.ActorSystem;
 import com.mani.vertx.InventoryHttpVerticle;
+
+import akka.actor.typed.ActorSystem;
 import io.vertx.core.Vertx;
 
 public class InventoryApplication {

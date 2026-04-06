@@ -89,6 +89,11 @@
         <version>${akka.version}</version>
         <scope>test</scope>
       </dependency>
+      <dependency>
+        <groupId>com.typesafe.akka</groupId>
+        <artifactId>akka-persistence-testkit_2.13</artifactId>
+        <version>${akka.version}</version>
+      </dependency>
   </dependencies>
 
   <repositories>

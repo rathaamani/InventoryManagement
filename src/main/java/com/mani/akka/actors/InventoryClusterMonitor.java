@@ -12,7 +12,7 @@ import akka.cluster.typed.Subscribe;
 public class InventoryClusterMonitor extends AbstractBehavior<ClusterEvent.ClusterDomainEvent> {
 
     public static Behavior<ClusterEvent.ClusterDomainEvent> create() {
-               return  Behaviors.setup(InventoryClusterMonitor::new);
+        return  Behaviors.setup(InventoryClusterMonitor::new);
     }
 
     private InventoryClusterMonitor(ActorContext<ClusterEvent.ClusterDomainEvent> context){
@@ -26,7 +26,7 @@ public class InventoryClusterMonitor extends AbstractBehavior<ClusterEvent.Clust
     }
 
     @Override
-      public Receive<ClusterEvent.ClusterDomainEvent> createReceive(){
+    public Receive<ClusterEvent.ClusterDomainEvent> createReceive(){
         return newReceiveBuilder()
                 .onMessage(ClusterEvent.MemberUp.class, this::onMemberUp)
                 .onMessage(ClusterEvent.MemberRemoved.class,this::onMemberRemoved)
